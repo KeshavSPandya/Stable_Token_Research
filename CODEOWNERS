@@ -1,0 +1,3 @@
+/contracts/   @core-solidity-owner
+/sdk/         @sdk-owner
+/subgraph/    @data-owner
