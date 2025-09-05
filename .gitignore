@@ -1,7 +1,8 @@
-/node_modules
-sdk/node_modules
-contracts/out
-contracts/cache
-coverage
+node_modules/
+sdk/node_modules/
+sdk/dist/
+contracts/out/
+contracts/cache/
+coverage/
 .DS_Store
 .env
