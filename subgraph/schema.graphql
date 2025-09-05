@@ -1,0 +1,38 @@
+type PSMRoute @entity {
+  id: ID!
+  spreadBps: BigInt!
+  maxDepth: BigInt!
+}
+
+type Swap @entity {
+  id: ID!
+  user: Bytes!
+  stable: Bytes!
+  inAmount: BigInt!
+  outAmount: BigInt!
+}
+
+type AllocatorMint @entity {
+  id: ID!
+  allocator: Bytes!
+  to: Bytes!
+  amount: BigInt!
+}
+
+type SavingsDeposit @entity {
+  id: ID!
+  user: Bytes!
+  amount: BigInt!
+}
+
+type SavingsWithdraw @entity {
+  id: ID!
+  user: Bytes!
+  amount: BigInt!
+}
+
+type ParamChange @entity {
+  id: ID!
+  param: String!
+  value: BigInt!
+}
