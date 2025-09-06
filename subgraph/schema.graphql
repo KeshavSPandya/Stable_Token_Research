@@ -1,38 +1,84 @@
+# System-wide state, a singleton entity.
+type SystemState @entity {
+  id: ID! # Always "0xUSD"
+  totalSupply: BigInt!
+}
+
+# Represents a user interacting with the protocol.
+type User @entity {
+  id: ID! # User address
+  s0xUSD_balance: BigInt!
+}
+
+# Represents a PSM route's current state.
 type PSMRoute @entity {
-  id: ID!
-  spreadBps: BigInt!
+  id: ID! # Address of the stablecoin
   maxDepth: BigInt!
+  buffer: BigInt!
+  spreadBps: BigInt!
+  halted: Boolean!
 }
 
-type Swap @entity {
-  id: ID!
-  user: Bytes!
-  stable: Bytes!
-  inAmount: BigInt!
-  outAmount: BigInt!
+# An event log for a PSM swap.
+type Swap @entity(immutable: true) {
+  id: ID! # Transaction hash
+  user: Bytes! # User address
+  stable: Bytes! # Stablecoin address
+  amountIn: BigInt!
+  amountOut: BigInt!
+  feeAmount: BigInt!
+  timestamp: BigInt!
 }
 
-type AllocatorMint @entity {
-  id: ID!
-  allocator: Bytes!
-  to: Bytes!
+# Represents an Allocator's current state.
+type Allocator @entity {
+  id: ID! # Allocator address
+  ceiling: BigInt!
+  dailyCap: BigInt!
+  debt: BigInt!
+}
+
+# An event log for an allocator mint or repay action.
+type AllocatorAction @entity(immutable: true) {
+  id: ID! # Transaction hash
+  type: String! # MINT or REPAY
+  allocator: Allocator!
+  repayer: Bytes # Address of the repayer, if applicable
+  to: Bytes # Address receiving tokens, if applicable
   amount: BigInt!
+  timestamp: BigInt!
 }
 
-type SavingsDeposit @entity {
-  id: ID!
-  user: Bytes!
-  amount: BigInt!
+# An event log for a savings vault action.
+type SavingsAction @entity(immutable: true) {
+  id: ID! # Transaction hash
+  type: String! # DEPOSIT or WITHDRAW or MINT or REDEEM
+  user: User!
+  owner: Bytes!
+  assets: BigInt!
+  shares: BigInt!
+  timestamp: BigInt!
 }
 
-type SavingsWithdraw @entity {
-  id: ID!
-  user: Bytes!
-  amount: BigInt!
+# --- Governance Parameter Changes ---
+
+type AddressParamUpdated @entity(immutable: true) {
+  id: ID! # Transaction hash + log index
+  key: Bytes!
+  value: Bytes!
+  timestamp: BigInt!
 }
 
-type ParamChange @entity {
-  id: ID!
-  param: String!
+type UintParamUpdated @entity(immutable: true) {
+  id: ID! # Transaction hash + log index
+  key: Bytes!
   value: BigInt!
+  timestamp: BigInt!
+}
+
+type BoolParamUpdated @entity(immutable: true) {
+  id: ID! # Transaction hash + log index
+  key: Bytes!
+  value: Boolean!
+  timestamp: BigInt!
 }
