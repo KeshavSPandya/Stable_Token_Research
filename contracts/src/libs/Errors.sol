@@ -5,5 +5,6 @@ error NotAuthorized();
 error RouteHalted();
 error DepthExceeded();
 error CapExceeded();
+error ZeroAddress();
 error ExceedsExitLiquidity();
 error StaleParity();
