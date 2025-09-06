@@ -23,8 +23,9 @@ contract PSMTest is Test {
     }
 
     function testSwapStableFor0xUSD() public {
-        psm.swapStableFor0xUSD(stable, 100, 99);
-        assertEq(token.balanceOf(address(this)), 100);
+        uint256 amount = 100e18;
+        psm.swapStableFor0xUSD(stable, amount, amount);
+        assertEq(token.balanceOf(address(this)), amount);
     }
 
     function testSwapStableFor0xUSDInvalidMinOut() public {
@@ -48,7 +49,7 @@ contract PSMTest is Test {
         psm.setRoute(stable6, 0, type(uint256).max, 6);
         psm.swapStableFor0xUSD(stable6, 2e6, 0);          // buffer = 2e6
         psm.swap0xUSDForStable(stable6, 1e18, 1e6);       // burn 1e18 -> 1e6 out
-        assertEq(token.balanceOf(address(this)), 1e18);   // net: +1e18 - 1e18 burned + 1e18 minted earlier -> final +1e18 minted earlier remains
+        assertEq(token.balanceOf(address(this)), 1e18);   // minted 2e18 then burned 1e18
         (uint256 buf, , , , ) = psm.routes(stable6);
         assertEq(buf, 1e6);
     }
@@ -57,6 +58,14 @@ contract PSMTest is Test {
         psm.halt(stable, true);
         vm.expectRevert(RouteHalted.selector);
         psm.swapStableFor0xUSD(stable, 1, 0);
+    }
+
+    function testSwapWithSixDecimals() public {
+        psm.setRoute(stable6, 0, type(uint256).max, 6);
+        psm.swapStableFor0xUSD(stable6, 100e6, 100e18);
+        assertEq(token.balanceOf(address(this)), 100e18);
+        psm.swap0xUSDForStable(stable6, 100e18, 100e6);
+        assertEq(token.balanceOf(address(this)), 0);
     }
 
     function testSweepRevertsExceedingBuffer() public {

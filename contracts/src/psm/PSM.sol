@@ -9,9 +9,9 @@ contract PSM {
     struct Route {
         uint256 buffer;     // STABLE units (native decimals)
         uint256 spreadBps;  // spread in bps
-        uint256 maxDepth;   // max STABLE in per tx (native decimals)
-        uint8 decimals;     // STABLE decimals
-        bool halted;
+        uint256 maxDepth;   // max STABLE per tx (native decimals)
+        uint8   decimals;   // STABLE decimals
+        bool    halted;
     }
 
     mapping(address => Route) public routes;
@@ -31,6 +31,7 @@ contract PSM {
         _;
     }
 
+    // Keep the canonical signature: (stable, spreadBps, maxDepth, decimals)
     function setRoute(address stable, uint256 spreadBps, uint256 maxDepth, uint8 decimals) external onlyGuardian {
         routes[stable].spreadBps = spreadBps;
         routes[stable].maxDepth  = maxDepth;
@@ -51,13 +52,12 @@ contract PSM {
         if (r.halted) revert RouteHalted();
         if (amount > r.maxDepth) revert DepthExceeded();
 
-        // compute 0xUSD amount before any state changes
-        uint256 scale = 10 ** (18 - r.decimals);
-        uint256 outUsd = amount * scale;
-        outUsd = (outUsd * (10000 - r.spreadBps)) / 10000;
+        // Convert STABLE (r.decimals) -> 18-dec 0xUSD then apply spread
+        uint256 normalized = _to18(amount, r.decimals);
+        uint256 outUsd = (normalized * (10000 - r.spreadBps)) / 10000;
         if (outUsd < minOut) revert InvalidParam();
 
-        // Account STABLE received into buffer
+        // Track STABLE units (native decimals) in buffer
         r.buffer += amount;
 
         token.mint(msg.sender, outUsd);
@@ -72,13 +72,12 @@ contract PSM {
         Route storage r = routes[stable];
         if (r.halted) revert RouteHalted();
 
-        // convert 0xUSD (18) -> STABLE (r.decimals) before checks
-        uint256 scale = 10 ** (18 - r.decimals);
-        uint256 scaledAmount = amount / scale; // floor, conservative
+        // Convert 0xUSD (18) -> STABLE (r.decimals) for capacity checks
+        uint256 neededStable = _from18(amount, r.decimals);
+        if (neededStable > r.buffer) revert DepthExceeded();
 
-        if (scaledAmount > r.buffer) revert DepthExceeded();
-
-        uint256 outStable = (scaledAmount * (10000 - r.spreadBps)) / 10000;
+        // Apply spread in STABLE units
+        uint256 outStable = (neededStable * (10000 - r.spreadBps)) / 10000;
         if (outStable < minOut) revert StaleParity();
 
         r.buffer -= outStable;
@@ -93,5 +92,18 @@ contract PSM {
         if (amt > buf) revert DepthExceeded();
         r.buffer = buf - amt;
         IERC20(stable).transfer(to, amt);
+    }
+
+    // ---------- helpers ----------
+    function _to18(uint256 amount, uint8 decimals) internal pure returns (uint256) {
+        if (decimals == 18) return amount;
+        if (decimals < 18) return amount * (10 ** (18 - uint256(decimals)));
+        return amount / (10 ** (uint256(decimals) - 18));
+    }
+
+    function _from18(uint256 amount, uint8 decimals) internal pure returns (uint256) {
+        if (decimals == 18) return amount;
+        if (decimals < 18) return amount / (10 ** (18 - uint256(decimals)));
+        return amount * (10 ** (uint256(decimals) - 18));
     }
 }
