@@ -89,8 +89,9 @@ contract PSM {
 
     function sweep(address stable, address to, uint256 amt) external onlyGuardian {
         Route storage r = routes[stable];
-        if (amt > r.buffer) revert DepthExceeded();
-        r.buffer -= amt;
+        uint256 buf = r.buffer;
+        if (amt > buf) revert DepthExceeded();
+        r.buffer = buf - amt;
         IERC20(stable).transfer(to, amt);
     }
 }
