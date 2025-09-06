@@ -1,6 +1,6 @@
 # 0xUSD Parameter Policy
 
-This document defines the key system parameters, their purpose, initial values, and the governance process for updating them. All parameters are managed through the `ParamRegistry.sol` contract.
+This document defines the key system parameters, their purpose, initial values, and the governance process for updating them. All parameters are managed through the `ParamRegistry.sol` contract or as immutable constructor arguments.
 
 ## Governance Process
 
@@ -13,8 +13,8 @@ This document defines the key system parameters, their purpose, initial values, 
 
 ### `facilitator(address => bool)`
 - **Purpose:** Grants an address the ability to mint/burn `0xUSD`. This is the most critical permission in the system.
-- **Governance:** Standard proposal only. Adding a new facilitator is a major system upgrade.
-- **Initial Values:**
+- **Governance:** Standard Proposal only. Adding a new facilitator is a major system upgrade.
+- **Initial Values (set in `Deploy.s.sol`):**
     - `PSM.sol`: `true`
     - `AllocatorVault.sol`: `true`
 
@@ -22,18 +22,18 @@ This document defines the key system parameters, their purpose, initial values, 
 
 ## PSM Parameters (`PSM.sol`)
 
-These parameters are configured on a per-collateral basis (e.g., one set for USDC, another for USDT).
+These parameters are configured on a per-collateral basis.
 
 ### `maxDepth`
 - **Purpose:** The maximum amount of a specific collateral the PSM can hold. This is an exposure cap to limit risk from any single collateral type.
-- **Units:** `uint256` (e.g., `10,000,000 * 1e6` for 10M USDC).
-- **Governance:** Steward Change (within a +/- 20% range of the last governance-set value), or Standard Proposal for larger changes.
-- **Initial Value (USDC):** `10,000,000 * 1e6`
+- **Units:** `uint128`
+- **Governance:** Steward Change or Standard Proposal.
+- **Initial Value (USDC):** `10,000,000 * 1e6` (10M USDC)
 
 ### `spreadBps`
 - **Purpose:** The fee charged on mint and redeem operations, denominated in basis points.
-- **Units:** `uint16` (e.g., `2` for 0.02%).
-- **Governance:** Steward Change (0-10 bps range), or Standard Proposal for larger changes.
+- **Units:** `uint16`
+- **Governance:** Steward Change or Standard Proposal.
 - **Initial Value (USDC):** `2` (0.02%)
 
 ### `halted`
@@ -48,17 +48,10 @@ These parameters are configured on a per-collateral basis (e.g., one set for USD
 
 These parameters are configured on a per-allocator basis.
 
-### `ceiling`
-- **Purpose:** The maximum amount of `0xUSD` an allocator can mint in total.
-- **Units:** `uint256` (e.g., `5,000,000 * 1e18` for 5M 0xUSD).
+### `ceiling` & `dailyCap`
+- **Purpose:** The maximum total debt and 24-hour velocity limit for a whitelisted allocator.
 - **Governance:** Standard Proposal only.
-- **Initial Values:** To be determined on a case-by-case basis when onboarding new allocators.
-
-### `dailyCap`
-- **Purpose:** The maximum amount of `0xUSD` an allocator can mint within a 24-hour period.
-- **Units:** `uint256`
-- **Governance:** Standard Proposal.
-- **Initial Values:** To be determined on a case-by-case basis.
+- **Initial Values:** No allocators are configured in the initial deployment script. Lines of credit must be set up via a governance action post-deployment.
 
 ---
 
@@ -66,12 +59,11 @@ These parameters are configured on a per-allocator basis.
 
 ### `exitBufferBps`
 - **Purpose:** The percentage of total assets under management (AUM) to be kept liquid in the vault to facilitate withdrawals.
-- **Units:** `uint16` (e.g., `1000` for 10%).
+- **Units:** `uint256`
 - **Governance:** Standard Proposal.
-- **Initial Value:** `1000` (10%)
+- **Initial Value:** `1000` (10%), set in the constructor.
 
-### `venueAllowlist(address => bool)`
-- **Purpose:** A whitelist of approved yield-generating venues where the vault can deploy `0xUSD`.
+### `yieldVenue`
+- **Purpose:** The address of the approved yield-generating venue where the vault can deploy `0xUSD`.
 - **Governance:** Standard Proposal only. Adding a new venue is a significant security decision.
-- **Initial Values:**
-    - `AaveV3Pool.sol`: `true` (example)
+- **Initial Value:** `address(0)`. No yield venue is configured in the initial deployment.

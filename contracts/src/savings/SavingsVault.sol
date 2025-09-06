@@ -4,6 +4,7 @@ pragma solidity ^0.8.24;
 import {ERC4626} from "openzeppelin-contracts/token/ERC20/extensions/ERC4626.sol";
 import {ERC20} from "openzeppelin-contracts/token/ERC20/ERC20.sol";
 import {Ownable} from "openzeppelin-contracts/access/Ownable.sol";
+import {ReentrancyGuard} from "openzeppelin-contracts/utils/ReentrancyGuard.sol";
 import {I0xUSD} from "../interfaces/I0xUSD.sol";
 import {Errors} from "../libs/Errors.sol";
 
@@ -14,7 +15,7 @@ import {Errors} from "../libs/Errors.sol";
  * @dev This contract holds 0xUSD and (in the future) deploys it to yield-generating venues.
  * It maintains an exit buffer to ensure withdrawal liquidity.
  */
-contract SavingsVault is ERC4626, Ownable {
+contract SavingsVault is ERC4626, Ownable, ReentrancyGuard {
     /// @notice The percentage of total assets to be kept liquid as an exit buffer.
     uint256 public exitBufferBps;
 
@@ -45,67 +46,59 @@ contract SavingsVault is ERC4626, Ownable {
         exitBufferBps = _initialExitBufferBps;
     }
 
-    /**
-     * @notice Returns the amount of underlying assets that are currently idle (not deployed to the yield venue).
-     * @dev In this version, since no yield venue is integrated, this will equal totalAssets().
-     */
+    // --- Overrides with nonReentrant guard ---
+
+    function deposit(uint256 assets, address receiver) public override nonReentrant returns (uint256) {
+        return super.deposit(assets, receiver);
+    }
+
+    function mint(uint256 shares, address receiver) public override nonReentrant returns (uint256) {
+        return super.mint(shares, receiver);
+    }
+
+    function withdraw(uint256 assets, address receiver, address owner) public override nonReentrant returns (uint256) {
+        return super.withdraw(assets, receiver, owner);
+    }
+
+    function redeem(uint256 shares, address receiver, address owner) public override nonReentrant returns (uint256) {
+        return super.redeem(shares, receiver, owner);
+    }
+
+    // --- Custom Functions ---
+
     function totalIdle() public view returns (uint256) {
-        // Placeholder: In a real implementation, this would be:
-        // totalAssets() - IYieldVenue(yieldVenue).balanceOf(address(this));
         return totalAssets();
     }
 
-    /**
-     * @notice "Deploys" idle assets to the yield venue to generate yield.
-     * @dev This is a placeholder for keeper integration. In this version, it does nothing
-     * but demonstrates the mechanism and emits an event.
-     * @return totalYield The total yield earned since the last harvest.
-     */
-    function harvest() external returns (uint256 totalYield) {
-        // Placeholder for future implementation.
-        // 1. Calculate yield earned from `yieldVenue`.
-        // 2. Report yield to the ERC4626 contract by minting new shares to `address(this)`.
-        //    _reward(yield);
-        // 3. Deploy idle assets from the buffer to the `yieldVenue`.
+    function harvest() external nonReentrant returns (uint256 totalYield) {
         uint256 idle = totalIdle();
         if (idle > 0) {
-            // IERC20(asset).safeTransfer(yieldVenue, idle);
+            // Placeholder for yield logic
         }
-        emit Harvest(idle, 0); // 0 yield for now
+        emit Harvest(idle, 0);
         return 0;
     }
 
-    /**
-     * @notice Sets the exit buffer percentage.
-     * @dev Only callable by the owner (governance).
-     * @param bps The new buffer size in basis points (e.g., 1000 for 10%).
-     */
+    // --- Admin Functions ---
+
     function setExitBuffer(uint256 bps) external onlyOwner {
         if (bps > 10_000) revert Errors.InvalidAmount();
         exitBufferBps = bps;
         emit ExitBufferUpdated(bps);
     }
 
-    /**
-     * @notice Sets the yield venue.
-     * @dev Only callable by the owner (governance).
-     * @param _venue The address of the new yield venue.
-     */
     function setYieldVenue(address _venue) external onlyOwner {
         if (_venue == address(0)) revert Errors.ZeroAddress();
         yieldVenue = _venue;
         emit YieldVenueUpdated(_venue);
     }
 
-    /**
-     * @dev Hook to enforce the exit buffer before a withdrawal or redemption.
-     */
+    // --- Internal Hooks ---
+
     function _beforeWithdraw(uint256 assets, uint256 shares) internal override {
         super._beforeWithdraw(assets, shares);
-
         uint256 requiredBuffer = (totalAssets() * exitBufferBps) / 10_000;
         uint256 availableForWithdraw = totalAssets() - requiredBuffer;
-
         if (assets > availableForWithdraw) {
             revert Errors.ExceedsExitLiquidity();
         }
