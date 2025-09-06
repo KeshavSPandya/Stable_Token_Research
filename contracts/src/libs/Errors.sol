@@ -8,3 +8,4 @@ error InvalidParam();
 error CapExceeded();
 error ExceedsExitLiquidity();
 error StaleParity();
+error InvalidParam();

@@ -3,6 +3,7 @@ pragma solidity ^0.8.24;
 
 import {I0xUSD} from "../interfaces/I0xUSD.sol";
 import {NotAuthorized, RouteHalted, DepthExceeded, StaleParity, InvalidParam} from "../libs/Errors.sol";
+import {IERC20} from "openzeppelin-contracts/token/ERC20/IERC20.sol";
 
 contract PSM {
     struct Route {
@@ -60,5 +61,12 @@ contract PSM {
         r.buffer -= out;
         token.burn(msg.sender, amount);
         emit Swap(msg.sender, stable, amount, out);
+    }
+
+    function sweep(address stable, address to, uint256 amt) external onlyGuardian {
+        Route storage r = routes[stable];
+        if (amt > r.buffer) revert DepthExceeded();
+        r.buffer -= amt;
+        IERC20(stable).transfer(to, amt);
     }
 }
