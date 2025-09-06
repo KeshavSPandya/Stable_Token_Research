@@ -38,6 +38,12 @@ contract PSMTest is Test {
         assertEq(token.balanceOf(address(this)), 1e18);
     }
 
+    function testSwapStableFor0xUSD6DecimalsSlippageReverts() public {
+        psm.setRoute(stable6, 0, type(uint256).max, 6);
+        vm.expectRevert(InvalidParam.selector);
+        psm.swapStableFor0xUSD(stable6, 1e6, 1e18 + 1);
+    }
+
     function testSwap0xUSDForStable6Decimals() public {
         psm.setRoute(stable6, 0, type(uint256).max, 6);
         psm.swapStableFor0xUSD(stable6, 2e6, 0);          // buffer = 2e6

@@ -51,11 +51,10 @@ contract PSM {
         if (r.halted) revert RouteHalted();
         if (amount > r.maxDepth) revert DepthExceeded();
 
-        // scale STABLE (r.decimals) -> 18-decimals 0xUSD
+        // compute 0xUSD amount before any state changes
         uint256 scale = 10 ** (18 - r.decimals);
-        uint256 outUsd = (amount * scale * (10000 - r.spreadBps)) / 10000;
-
-        // keep InvalidParam for buy-side minOut failure
+        uint256 outUsd = amount * scale;
+        outUsd = (outUsd * (10000 - r.spreadBps)) / 10000;
         if (outUsd < minOut) revert InvalidParam();
 
         // Account STABLE received into buffer
