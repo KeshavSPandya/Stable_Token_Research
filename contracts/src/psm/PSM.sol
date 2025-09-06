@@ -2,7 +2,7 @@
 pragma solidity ^0.8.24;
 
 import {I0xUSD} from "../interfaces/I0xUSD.sol";
-import {NotAuthorized, RouteHalted, DepthExceeded, StaleParity} from "../libs/Errors.sol";
+import {NotAuthorized, RouteHalted, DepthExceeded, StaleParity, InvalidParam} from "../libs/Errors.sol";
 
 contract PSM {
     struct Route {
@@ -44,11 +44,11 @@ contract PSM {
         if (r.halted) revert RouteHalted();
         if (amount > r.maxDepth) revert DepthExceeded();
         // parity check placeholder
-        uint256 out = (amount * (10000 - r.spreadBps)) / 10000;
-        if (out < minOut) revert StaleParity();
+        uint256 outUsd = (amount * (10000 - r.spreadBps)) / 10000;
+        if (outUsd < minOut) revert InvalidParam();
         r.buffer += amount;
-        token.mint(msg.sender, out);
-        emit Swap(msg.sender, stable, amount, out);
+        token.mint(msg.sender, outUsd);
+        emit Swap(msg.sender, stable, amount, outUsd);
     }
 
     function swap0xUSDForStable(address stable, uint256 amount, uint256 minOut) external {
