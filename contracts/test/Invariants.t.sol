@@ -61,37 +61,58 @@ contract InvariantTest is StdInvariant, Test {
 
     // --- Invariants ---
 
-    // Invariant 1: Total supply of 0xUSD should always equal the sum of assets backing it.
-    // Backing = (USDC in PSM) + (Debt from AllocatorVault)
     function invariant_totalSupplyMatchesBacking() public {
         uint256 psmBacking = psm.routes(address(usdc)).buffer;
         uint256 allocatorBacking = allocatorVault.debt(allocator);
-
-        // We need to scale the PSM backing to 18 decimals
         uint256 scaledPsmBacking = psmBacking * 1e12;
-
-        // The total supply of 0xUSD is the sum of all minted tokens.
-        // Some tokens might be in the savings vault, but this doesn't change total supply.
-        assertEq(token.totalSupply(), scaledPsmBacking + allocatorBacking);
+        assertEq(token.totalSupply(), scaledPsmBacking + allocatorBacking, "Total supply must equal total backing");
     }
 
-    // Invariant 2: The total assets in the savings vault should always equal
-    // the amount of 0xUSD held by the vault contract.
-    // (This holds true as long as no yield venue is integrated)
     function invariant_savingsVaultAssetsMatchBalance() public {
-        assertEq(savingsVault.totalAssets(), token.balanceOf(address(savingsVault)));
+        assertEq(savingsVault.totalAssets(), token.balanceOf(address(savingsVault)), "Savings vault assets must equal its token balance");
     }
 
-    // Invariant 3: The value of one share of s0xUSD should never decrease.
-    // We check this by ensuring that converting 1e18 shares to assets never returns less than the previous value.
     uint256 private lastShareValue;
     function invariant_s0xUSDShareValueIsMonotonic() public {
         if (savingsVault.totalSupply() > 0) {
             uint256 currentShareValue = savingsVault.convertToAssets(1e18);
             if (lastShareValue > 0) {
-                assertTrue(currentShareValue >= lastShareValue);
+                assertTrue(currentShareValue >= lastShareValue, "s0xUSD share value should not decrease");
             }
             lastShareValue = currentShareValue;
         }
+    }
+
+    function invariant_psmBufferNotExceedDepth() public {
+        PSM.Route memory route = psm.routes(address(usdc));
+        assertTrue(route.buffer <= route.maxDepth, "PSM buffer cannot exceed max depth");
+    }
+
+    function invariant_allocatorDebtNotExceedCeiling() public {
+        AllocatorVault.LineOfCredit memory line = allocatorVault.lines(allocator);
+        assertTrue(allocatorVault.debt(allocator) <= line.ceiling, "Allocator debt cannot exceed ceiling");
+    }
+
+    function invariant_savingsTotalSupplyIsConsistent() public {
+        // Total supply of s0xUSD should not be able to grow faster than the assets held.
+        // In a no-yield scenario, 1 share = 1 asset. With yield, 1 share > 1 asset.
+        // Therefore, totalSupply of shares should always be <= totalAssets.
+        assertTrue(savingsVault.totalSupply() <= savingsVault.totalAssets(), "s0xUSD total supply should not exceed total assets");
+    }
+
+    uint256 private lastFeeRecipientBalance;
+    function invariant_feeRecipientBalanceDoesNotDecrease() public {
+        uint256 currentBalance = usdc.balanceOf(feeRecipient);
+        if (lastFeeRecipientBalance > 0) {
+            assertTrue(currentBalance >= lastFeeRecipientBalance, "Fee recipient balance should not decrease");
+        }
+        lastFeeRecipientBalance = currentBalance;
+    }
+
+    function invariant_ownerCannotChange() public {
+        assertEq(token.owner(), owner);
+        assertEq(psm.owner(), owner);
+        assertEq(allocatorVault.owner(), owner);
+        assertEq(savingsVault.owner(), owner);
     }
 }

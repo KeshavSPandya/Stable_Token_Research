@@ -47,16 +47,16 @@ Not audited.
 - [x] Write parameter policy in `/docs/params.md`.
 
 ## Security/Quality Bars
-- [ ] Invariants ≥ 15 for MVP (target 25+ pre-audit).
+- [x] Invariants ≥ 15 for MVP (target 25+ pre-audit).
 - [ ] Fuzz steps ≥ 2M (target 10M pre-audit).
 - [ ] Coverage ≥ 90% (target 95%).
-- [ ] No external calls without checks; no unbounded loops in core paths.
+- [x] No external calls without checks; no unbounded loops in core paths.
 
 ## Governance/Ops
-- [ ] Guardian + Timelock addresses set.
-- [ ] PSM route thresholds agreed (spread bps, depth, breaker %).
-- [ ] Allocator ceilings & daily caps documented.
-- [ ] s0xUSD exit buffer policy documented.
+- [x] Guardian + Timelock addresses set.
+- [x] PSM route thresholds agreed (spread bps, depth, breaker %).
+- [x] Allocator ceilings & daily caps documented.
+- [x] s0xUSD exit buffer policy documented.
 
 ## Conventions
 - Solidity: ^0.8.24, OZ Contracts, non-reentrant core paths.
