@@ -23,4 +23,9 @@ contract ParamRegistryTest is Test {
         registry.setAddr(key, value);
         assertEq(registry.addrs(key), value);
     }
+
+    function testSetSpreadZeroAddressReverts() public {
+        vm.expectRevert(ZeroAddress.selector);
+        registry.setSpread(address(0), 100);
+    }
 }

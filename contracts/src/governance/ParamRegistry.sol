@@ -24,6 +24,7 @@ contract ParamRegistry {
     }
 
     function setSpread(address stable, uint256 bps) external onlyDao {
+        if (stable == address(0)) revert ZeroAddress();
         emit SpreadSet(stable, bps);
     }
 

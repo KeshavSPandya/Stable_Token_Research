@@ -11,6 +11,7 @@ contract SavingsVault is ERC4626 {
     address public guardian;
 
     constructor(IERC20 asset, address _guardian) ERC20("s0xUSD", "s0xUSD") ERC4626(asset) {
+        if (_guardian == address(0)) revert ZeroAddress();
         guardian = _guardian;
     }
 
