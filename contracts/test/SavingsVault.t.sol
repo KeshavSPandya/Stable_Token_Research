@@ -4,6 +4,7 @@ pragma solidity ^0.8.24;
 import {Test} from "forge-std/Test.sol";
 import {SavingsVault} from "../src/savings/SavingsVault.sol";
 import {OxUSD} from "../src/token/0xUSD.sol";
+import {ExceedsExitLiquidity} from "../src/libs/Errors.sol";
 
 contract SavingsVaultTest is Test {
     SavingsVault vault;
@@ -31,6 +32,15 @@ contract SavingsVaultTest is Test {
         vault.deposit(100, address(this));
         vault.setExitBuffer(5000);
         vm.expectRevert();
+        vault.withdraw(60, address(this), address(this));
+    }
+
+    function testWithdrawExceedsExitBuffer() public {
+        token.mint(address(this), 100);
+        token.approve(address(vault), 100);
+        vault.deposit(100, address(this));
+        vault.setExitBuffer(5000);
+        vm.expectRevert(ExceedsExitLiquidity.selector);
         vault.withdraw(60, address(this), address(this));
     }
 }
