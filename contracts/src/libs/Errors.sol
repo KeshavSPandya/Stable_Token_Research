@@ -7,3 +7,4 @@ error DepthExceeded();
 error CapExceeded();
 error ExceedsExitLiquidity();
 error StaleParity();
+error InvalidParam();
