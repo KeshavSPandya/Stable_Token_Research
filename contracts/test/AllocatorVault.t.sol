@@ -4,6 +4,7 @@ pragma solidity ^0.8.24;
 import {Test} from "forge-std/Test.sol";
 import {AllocatorVault} from "../src/allocators/AllocatorVault.sol";
 import {OxUSD} from "../src/token/0xUSD.sol";
+import {ZeroAddress} from "../src/libs/Errors.sol";
 
 contract AllocatorVaultTest is Test {
     AllocatorVault vault;
@@ -25,5 +26,15 @@ contract AllocatorVaultTest is Test {
         vault.mintTo(address(1), 500);
         vm.expectRevert();
         vault.mintTo(address(1), 1);
+    }
+
+    function testSetCeilingZeroAddressReverts() public {
+        vm.expectRevert(ZeroAddress.selector);
+        vault.setCeiling(address(0), 100);
+    }
+
+    function testSetDailyCapZeroAddressReverts() public {
+        vm.expectRevert(ZeroAddress.selector);
+        vault.setDailyCap(address(0), 100);
     }
 }
