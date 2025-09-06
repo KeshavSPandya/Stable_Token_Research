@@ -4,6 +4,7 @@ pragma solidity ^0.8.24;
 import {Test} from "forge-std/Test.sol";
 import {PSM} from "../src/psm/PSM.sol";
 import {OxUSD} from "../src/token/0xUSD.sol";
+import {InvalidParam} from "../src/libs/Errors.sol";
 
 contract MockStable {
     function transfer(address, uint256) external returns (bool) {
@@ -27,6 +28,11 @@ contract PSMTest is Test {
     function testSwapStableFor0xUSD() public {
         psm.swapStableFor0xUSD(address(stable), 100, 99);
         assertEq(token.balanceOf(address(this)), 100);
+    }
+
+    function testSwapStableFor0xUSDInvalidMinOut() public {
+        vm.expectRevert(InvalidParam.selector);
+        psm.swapStableFor0xUSD(stable, 100, 101);
     }
 
     function testHaltReverts() public {
