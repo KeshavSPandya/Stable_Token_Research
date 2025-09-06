@@ -6,6 +6,7 @@ error RouteHalted();
 error DepthExceeded();
 error InvalidParam();
 error CapExceeded();
+error ZeroAddress();
 error ExceedsExitLiquidity();
 error StaleParity();
 error InvalidParam();
