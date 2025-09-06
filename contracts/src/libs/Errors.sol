@@ -9,4 +9,4 @@ error CapExceeded();
 error ZeroAddress();
 error ExceedsExitLiquidity();
 error StaleParity();
-error InvalidParam();
+error ZeroAddress();
