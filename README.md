@@ -37,14 +37,14 @@ Not audited.
 ---
 
 ## MVP Ship List
-- [ ] Implement 0xUSD with Permit + restricted minters.
-- [ ] Implement PSM core paths + route caps + breaker.
-- [ ] Implement AllocatorVault with ceilings & daily caps.
-- [ ] Implement SavingsVault (ERC-4626) with exit buffer.
-- [ ] Add Foundry tests (unit + basic invariants).
-- [ ] Wire CI and gas report.
-- [ ] Publish first Subgraph draft.
-- [ ] Write parameter policy in `/docs/params.md`.
+- [x] Implement 0xUSD with Permit + restricted minters.
+- [x] Implement PSM core paths + route caps + breaker.
+- [x] Implement AllocatorVault with ceilings & daily caps.
+- [x] Implement SavingsVault (ERC-4626) with exit buffer.
+- [x] Add Foundry tests (unit + basic invariants).
+- [x] Wire CI and gas report.
+- [x] Publish first Subgraph draft.
+- [x] Write parameter policy in `/docs/params.md`.
 
 ## Security/Quality Bars
 - [ ] Invariants ≥ 15 for MVP (target 25+ pre-audit).
