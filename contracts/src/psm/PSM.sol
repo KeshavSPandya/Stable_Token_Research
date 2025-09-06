@@ -10,6 +10,7 @@ contract PSM {
         uint256 spreadBps;
         uint256 maxDepth;
         bool halted;
+        uint8 decimals;
     }
 
     mapping(address => Route) public routes;
@@ -29,9 +30,11 @@ contract PSM {
         _;
     }
 
-    function setRoute(address stable, uint256 spreadBps, uint256 maxDepth) external onlyGuardian {
-        routes[stable].spreadBps = spreadBps;
-        routes[stable].maxDepth = maxDepth;
+    function setRoute(address stable, uint8 decimals, uint256 spreadBps, uint256 maxDepth) external onlyGuardian {
+        Route storage r = routes[stable];
+        r.decimals = decimals;
+        r.spreadBps = spreadBps;
+        r.maxDepth = maxDepth;
     }
 
     function halt(address stable, bool h) external onlyGuardian {
@@ -42,11 +45,11 @@ contract PSM {
     function swapStableFor0xUSD(address stable, uint256 amount, uint256 minOut) external {
         Route storage r = routes[stable];
         if (r.halted) revert RouteHalted();
-        if (amount > r.maxDepth) revert DepthExceeded();
-        // parity check placeholder
-        uint256 out = (amount * (10000 - r.spreadBps)) / 10000;
+        uint256 normalized = _to18(amount, r.decimals);
+        if (normalized > r.maxDepth) revert DepthExceeded();
+        uint256 out = (normalized * (10000 - r.spreadBps)) / 10000;
         if (out < minOut) revert StaleParity();
-        r.buffer += amount;
+        r.buffer += normalized;
         token.mint(msg.sender, out);
         emit Swap(msg.sender, stable, amount, out);
     }
@@ -55,10 +58,23 @@ contract PSM {
         Route storage r = routes[stable];
         if (r.halted) revert RouteHalted();
         if (amount > r.buffer) revert DepthExceeded();
-        uint256 out = (amount * (10000 - r.spreadBps)) / 10000;
+        uint256 outNormalized = (amount * (10000 - r.spreadBps)) / 10000;
+        uint256 out = _from18(outNormalized, r.decimals);
         if (out < minOut) revert StaleParity();
-        r.buffer -= out;
+        r.buffer -= outNormalized;
         token.burn(msg.sender, amount);
         emit Swap(msg.sender, stable, amount, out);
+    }
+
+    function _to18(uint256 amount, uint8 decimals) internal pure returns (uint256) {
+        if (decimals == 18) return amount;
+        if (decimals < 18) return amount * (10 ** (18 - uint256(decimals)));
+        return amount / (10 ** (uint256(decimals) - 18));
+    }
+
+    function _from18(uint256 amount, uint8 decimals) internal pure returns (uint256) {
+        if (decimals == 18) return amount;
+        if (decimals < 18) return amount / (10 ** (18 - uint256(decimals)));
+        return amount * (10 ** (uint256(decimals) - 18));
     }
 }
