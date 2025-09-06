@@ -3,7 +3,7 @@ pragma solidity ^0.8.24;
 
 import {ERC20, IERC20} from "openzeppelin-contracts/token/ERC20/ERC20.sol";
 import {ERC4626} from "openzeppelin-contracts/token/ERC20/extensions/ERC4626.sol";
-import {NotAuthorized, ExceedsExitLiquidity} from "../libs/Errors.sol";
+import {NotAuthorized, ExceedsExitLiquidity, ZeroAddress} from "../libs/Errors.sol";
 
 contract SavingsVault is ERC4626 {
     uint256 public exitBufferBps;
@@ -11,6 +11,7 @@ contract SavingsVault is ERC4626 {
     address public guardian;
 
     constructor(IERC20 asset, address _guardian) ERC20("s0xUSD", "s0xUSD") ERC4626(asset) {
+        if (_guardian == address(0)) revert ZeroAddress();
         guardian = _guardian;
     }
 
@@ -23,7 +24,8 @@ contract SavingsVault is ERC4626 {
         exitBufferBps = bps;
     }
 
-    function setAllowed(address target, bool ok) external onlyGuardian {
+    function setVenue(address target, bool ok) external onlyGuardian {
+        if (target == address(0)) revert ZeroAddress();
         allowed[target] = ok;
     }
 

@@ -2,10 +2,10 @@
 pragma solidity ^0.8.24;
 
 import {ERC20, ERC20Permit} from "openzeppelin-contracts/token/ERC20/extensions/ERC20Permit.sol";
-import {NotAuthorized} from "../libs/Errors.sol";
 
 contract OxUSD is ERC20Permit {
     error Paused();
+    error NotAuthorized();
     address public psm;
     address public allocator;
     address public owner;
@@ -38,14 +38,9 @@ contract OxUSD is ERC20Permit {
         paused = false;
     }
 
-    function transfer(address to, uint256 amount) public override returns (bool) {
-        if (paused) revert Paused();
-        return super.transfer(to, amount);
-    }
-
-    function transferFrom(address from, address to, uint256 amount) public override returns (bool) {
-        if (paused) revert Paused();
-        return super.transferFrom(from, to, amount);
+    function _update(address from, address to, uint256 amount) internal override {
+        if (paused && from != address(0) && to != address(0)) revert Paused();
+        super._update(from, to, amount);
     }
 
     function mint(address to, uint256 amount) external onlyMinter {
