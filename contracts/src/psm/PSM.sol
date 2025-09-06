@@ -9,6 +9,7 @@ contract PSM {
         uint256 buffer;
         uint256 spreadBps;
         uint256 maxDepth;
+        uint8 decimals;
         bool halted;
     }
 
@@ -29,9 +30,10 @@ contract PSM {
         _;
     }
 
-    function setRoute(address stable, uint256 spreadBps, uint256 maxDepth) external onlyGuardian {
+    function setRoute(address stable, uint256 spreadBps, uint256 maxDepth, uint8 decimals) external onlyGuardian {
         routes[stable].spreadBps = spreadBps;
         routes[stable].maxDepth = maxDepth;
+        routes[stable].decimals = decimals;
     }
 
     function halt(address stable, bool h) external onlyGuardian {
@@ -43,8 +45,8 @@ contract PSM {
         Route storage r = routes[stable];
         if (r.halted) revert RouteHalted();
         if (amount > r.maxDepth) revert DepthExceeded();
-        // parity check placeholder
-        uint256 out = (amount * (10000 - r.spreadBps)) / 10000;
+        uint256 scale = 10 ** (18 - r.decimals);
+        uint256 out = (amount * scale * (10000 - r.spreadBps)) / 10000;
         if (out < minOut) revert StaleParity();
         r.buffer += amount;
         token.mint(msg.sender, out);
@@ -54,8 +56,10 @@ contract PSM {
     function swap0xUSDForStable(address stable, uint256 amount, uint256 minOut) external {
         Route storage r = routes[stable];
         if (r.halted) revert RouteHalted();
-        if (amount > r.buffer) revert DepthExceeded();
-        uint256 out = (amount * (10000 - r.spreadBps)) / 10000;
+        uint256 scale = 10 ** (18 - r.decimals);
+        uint256 scaledAmount = amount / scale;
+        if (scaledAmount > r.buffer) revert DepthExceeded();
+        uint256 out = (scaledAmount * (10000 - r.spreadBps)) / 10000;
         if (out < minOut) revert StaleParity();
         r.buffer -= out;
         token.burn(msg.sender, amount);
