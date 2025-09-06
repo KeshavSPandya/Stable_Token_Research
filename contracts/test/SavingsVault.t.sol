@@ -48,4 +48,9 @@ contract SavingsVaultTest is Test {
         vm.expectRevert(ZeroAddress.selector);
         vault.setVenue(address(0), true);
     }
+
+    function testConstructorZeroGuardianReverts() public {
+        vm.expectRevert(ZeroAddress.selector);
+        new SavingsVault(token, address(0));
+    }
 }
