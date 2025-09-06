@@ -23,4 +23,11 @@ contract TokenTest is Test {
         token.burn(address(this), 50);
         assertEq(token.balanceOf(address(this)), 50);
     }
+
+    function testPauseBlocksTransfer() public {
+        token.mint(address(this), 100);
+        token.pause();
+        vm.expectRevert(OxUSD.Paused.selector);
+        token.transfer(address(1), 50);
+    }
 }

@@ -2,7 +2,7 @@
 pragma solidity ^0.8.24;
 
 import {I0xUSD} from "../interfaces/I0xUSD.sol";
-import {NotAuthorized, CapExceeded} from "../libs/Errors.sol";
+import {NotAuthorized, CapExceeded, ZeroAddress} from "../libs/Errors.sol";
 
 contract AllocatorVault {
     struct Line {
@@ -32,6 +32,16 @@ contract AllocatorVault {
     function setLine(address allocator, uint256 ceiling, uint256 dailyCap) external onlyGuardian {
         lines[allocator].ceiling = ceiling;
         lines[allocator].dailyCap = dailyCap;
+    }
+
+    function setCeiling(address who, uint256 ceiling) external onlyGuardian {
+        if (who == address(0)) revert ZeroAddress();
+        lines[who].ceiling = ceiling;
+    }
+
+    function setDailyCap(address who, uint256 dailyCap) external onlyGuardian {
+        if (who == address(0)) revert ZeroAddress();
+        lines[who].dailyCap = dailyCap;
     }
 
     function mintTo(address to, uint256 amount) external {
