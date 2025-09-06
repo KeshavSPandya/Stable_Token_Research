@@ -20,9 +20,11 @@ jobs:
       - uses: actions/setup-node@v3
         with:
           node-version: 18
+      - uses: pnpm/action-setup@v2
       - run: pnpm install --frozen-lockfile
         working-directory: sdk
-      - run: npx solhint 'contracts/**/*.sol'
+      - run: npm install -g solhint
+      - run: solhint 'contracts/**/*.sol'
       - run: pnpm lint
         working-directory: sdk
 
@@ -33,6 +35,7 @@ jobs:
       - uses: actions/setup-node@v3
         with:
           node-version: 18
+      - uses: pnpm/action-setup@v2
       - run: pnpm install --frozen-lockfile
         working-directory: sdk
       - run: pnpm test
