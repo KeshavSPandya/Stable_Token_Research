@@ -35,6 +35,11 @@ contract PSMTest is Test {
         psm.swapStableFor0xUSD(address(stable), 1, 0);
     }
 
+    function testSweepRevertsExceedingBuffer() public {
+        vm.expectRevert();
+        psm.sweep(address(stable), address(this), 1);
+    }
+
     function testSweepDecreasesBuffer() public {
         psm.swapStableFor0xUSD(address(stable), 100, 99);
         (uint256 beforeBuffer, , , ) = psm.routes(address(stable));
