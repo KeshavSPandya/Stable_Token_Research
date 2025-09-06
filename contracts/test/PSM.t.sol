@@ -64,12 +64,15 @@ contract PSMTest is Test {
         psm.sweep(stable, address(this), 1);
     }
 
-    function testSweepDecreasesBuffer() public {
-        psm.swapStableFor0xUSD(stable, 100, 99);
-        (uint256 beforeBuffer, , , , ) = psm.routes(stable);
+    function testSweepBufferAccounting() public {
+        psm.swapStableFor0xUSD(stable, 100, 99); // buffer = 100
         psm.sweep(stable, address(this), 40);
+
         (uint256 afterBuffer, , , , ) = psm.routes(stable);
-        assertEq(afterBuffer, beforeBuffer - 40);
+        assertEq(afterBuffer, 60);
+
+        vm.expectRevert(DepthExceeded.selector);
+        psm.sweep(stable, address(this), 61); // exceeds remaining buffer
     }
 
     function testSwap0xUSDForStable() public {
