@@ -37,26 +37,26 @@ Not audited.
 ---
 
 ## MVP Ship List
-- [ ] Implement 0xUSD with Permit + restricted minters.
-- [ ] Implement PSM core paths + route caps + breaker.
-- [ ] Implement AllocatorVault with ceilings & daily caps.
-- [ ] Implement SavingsVault (ERC-4626) with exit buffer.
-- [ ] Add Foundry tests (unit + basic invariants).
-- [ ] Wire CI and gas report.
-- [ ] Publish first Subgraph draft.
-- [ ] Write parameter policy in `/docs/params.md`.
+- [x] Implement 0xUSD with Permit + restricted minters.
+- [x] Implement PSM core paths + route caps + breaker.
+- [x] Implement AllocatorVault with ceilings & daily caps.
+- [x] Implement SavingsVault (ERC-4626) with exit buffer.
+- [x] Add Foundry tests (unit + basic invariants).
+- [x] Wire CI and gas report.
+- [x] Publish first Subgraph draft.
+- [x] Write parameter policy in `/docs/params.md`.
 
 ## Security/Quality Bars
-- [ ] Invariants ≥ 15 for MVP (target 25+ pre-audit).
+- [x] Invariants ≥ 15 for MVP (target 25+ pre-audit).
 - [ ] Fuzz steps ≥ 2M (target 10M pre-audit).
 - [ ] Coverage ≥ 90% (target 95%).
-- [ ] No external calls without checks; no unbounded loops in core paths.
+- [x] No external calls without checks; no unbounded loops in core paths.
 
 ## Governance/Ops
-- [ ] Guardian + Timelock addresses set.
-- [ ] PSM route thresholds agreed (spread bps, depth, breaker %).
-- [ ] Allocator ceilings & daily caps documented.
-- [ ] s0xUSD exit buffer policy documented.
+- [x] Guardian + Timelock addresses set.
+- [x] PSM route thresholds agreed (spread bps, depth, breaker %).
+- [x] Allocator ceilings & daily caps documented.
+- [x] s0xUSD exit buffer policy documented.
 
 ## Conventions
 - Solidity: ^0.8.24, OZ Contracts, non-reentrant core paths.
