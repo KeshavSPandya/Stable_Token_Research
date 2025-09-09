@@ -44,3 +44,39 @@ The `DssLitePsm` represents a more advanced and efficient architecture. While ou
 - **Secondary Benefit:** The ability to earn yield on the PSM's collateral via the `Pocket` contract, creating a powerful new revenue stream for the 0xUSD DAO.
 
 The main trade-off is the increased complexity of the keeper-based operational model. However, this is a standard pattern in DeFi and is a worthwhile trade-off for the significant benefits.
+
+---
+
+## 4. Next-Generation PSM Features (PSM3 Concepts)
+
+Beyond the gas and capital efficiency of the LitePSM model, the next generation of stability modules are incorporating even more advanced features.
+
+### 4.1. Dynamic Fee Policies
+
+While most PSMs today use governance-set fixed fees, a more advanced model involves dynamic, algorithmic fees to automatically defend the peg.
+
+- **Concept:** The PSM's `tin` (mint fee) and `tout` (redeem fee) would adjust automatically based on market conditions.
+- **Example Mechanism:**
+    - If the protocol's stablecoin is trading **above peg** (e.g., at $1.005), the `tin` (mint fee) could be automatically lowered, making it cheaper for arbitrageurs to mint new tokens and sell them, pushing the price down.
+    - If the protocol's stablecoin is trading **below peg** (e.g., at $0.995), the `tout` (redeem fee) could be lowered, making it more profitable for arbitrageurs to buy cheap tokens and redeem them for the underlying collateral, pushing the price up.
+- **Implementation:** This would require an on-chain oracle to report the market price of the stablecoin and a smart contract with a trusted algorithm to adjust the fee parameters. While no major protocol has implemented a fully autonomous version of this yet, it represents the next frontier in automated peg management.
+
+### 4.2. Integrated Cross-Chain Liquidity (GHO Model)
+
+As a stablecoin expands to multiple networks, managing its liquidity and peg across all of them becomes a major challenge. GHO's integration with Chainlink's Cross-Chain Interoperability Protocol (CCIP) provides a model for how to manage this.
+
+- **Mechanism:** GHO uses a "lock-and-mint" and "burn-and-release" model.
+    - **To L2/Sidechain:** A user locks GHO on Ethereum mainnet in a special `GHOCCIPTokenPool` contract. CCIP sends a secure message to the destination chain, which then mints a corresponding amount of "bridged GHO".
+    - **From L2/Sidechain:** A user burns the bridged GHO on the L2. CCIP sends a message back to mainnet, and the `GHOCCIPTokenPool` contract releases the locked GHO to the user.
+- **Architectural Insight:** The `GHOCCIPTokenPool` contract on mainnet is implemented as another **facilitator** in the GHO protocol. This is a very clean design. It means that bridging is a first-class part of the protocol's monetary policy. Governance can set a "bucket capacity" (minting limit) on the bridging facilitator, which effectively controls the total amount of GHO that can exist on other chains.
+
+### 4.3. Automated Circuit Breakers (GHO Model)
+
+While our 0xUSD PSM has a manual `halt()` function, more advanced systems are moving towards automated circuit breakers to protect against collateral de-pegging events.
+
+- **Mechanism:** GHO's Stability Module (GSM) can be connected to an `OracleSwapFreezer` contract.
+- **How it works:**
+    - This freezer contract is configured by governance with a price deviation threshold (e.g., 2%).
+    - It continuously monitors a Chainlink Price Feed for the underlying collateral (e.g., USDC).
+    - If the oracle reports that the collateral's price has dropped below the threshold (e.g., USDC is trading at $0.97), the `OracleSwapFreezer` automatically calls the `halt()` function on the GSM.
+- **Benefit:** This provides a rapid, automated defense against collateral failure, removing the need to wait for a multi-sig or a slow governance vote to react to a crisis. It significantly enhances the security and resilience of the protocol.
