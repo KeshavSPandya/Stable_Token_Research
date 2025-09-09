@@ -2,48 +2,50 @@
 
 ## 1. Introduction
 
-This document provides a detailed analysis of the advanced Peg Stability Module (PSM) architecture used by the Sky Ecosystem (formerly MakerDAO) and its relationship with integrated protocols like Spark. It clarifies the term "PSM3", details the layered architecture, and explains the mechanism for cross-chain asset movement.
+This document provides a detailed analysis of the advanced Peg Stability Module (PSM) architectures used by the Sky Ecosystem (formerly MakerDAO) and its relationship with integrated protocols like Spark. It clarifies the different PSM models, details the layered architecture across mainnet and L2s, and explains the mechanism for cross-chain asset movement.
 
-## 2. Clarifying "PSM3": The `DssLitePsm`
+## 2. The Two Key PSM Architectures
 
-Our research indicates that there is no officially named "PSM3" module. The term most likely refers to the latest major iteration of MakerDAO's stability module, which is the **`DssLitePsm`**. This can be considered the third generation after the original PSM and PSMv2.
+The Sky Ecosystem utilizes two distinct but related PSM models, each designed for a different purpose and environment.
 
-**Spark Protocol does not have its own independent PSM.** Instead, it is an application layer that directly integrates with the canonical `DssLitePsm` provided by the core Sky Ecosystem for handling 1:1 swaps of its primary stablecoins (USDC, USDS, DAI).
+### 2.1. The Mainnet Engine: `DssLitePsm`
 
-## 3. The Layered Architecture: Sky Ecosystem & Spark
+This is the canonical, "version 3" PSM of the core MakerDAO/Sky protocol, which I previously analyzed. Its primary role is to be the ultimate arbiter of the peg on Ethereum mainnet.
 
-The relationship between the Sky Ecosystem and Spark illustrates a powerful, layered approach to building a DeFi ecosystem.
+- **Key Features:**
+    - **Gas-Efficient Swaps:** Decouples user swaps from core protocol accounting by using a buffer of pre-minted stablecoins.
+    - **Off-Band Keepers:** Relies on keeper bots to call `fill()` and `trim()` to manage the buffer.
+    - **Yield-Bearing Collateral:** Can use a `pocket` contract to hold collateral, allowing the protocol to earn yield on its reserves.
+    - **Single-Pair Focus:** Each `DssLitePsm` instance is designed to manage a single pair of assets (e.g., DAI and USDC).
 
-- **Layer 1: The Core Protocol (Sky Ecosystem / MakerDAO)**
-    - This layer contains the fundamental, "trust-minimized" components of the system.
-    - **`DssLitePsm`:** This is the canonical, highly-efficient Peg Stability Module. Its sole focus is to be a robust, secure, and cheap mechanism for swapping specific, highly-trusted stablecoins at a 1:1 rate. It is the ultimate arbiter of the peg.
-    - **Savings Rate (DSR/SSR):** This is the core yield-generating mechanism where the protocol's native stablecoins can be deposited to earn a variable savings rate set by governance.
+### 2.2. The L2 Liquidity Hub: `spark-psm` (PSM3)
 
-- **Layer 2: The Integration/Application Layer (Spark Protocol)**
-    - This layer provides user-facing products and a polished user experience. It builds *on top of* the core protocol, but does not reinvent its core logic.
-    - **Spark's Role:** Spark provides lending markets and user-friendly savings vaults. Instead of building its own PSM, it simply routes user swaps to the underlying `DssLitePsm`.
-    - **The Spark "Liquidity Layer":** This is not an on-chain protocol, but a *strategy*. To provide a seamless experience for users who want to deposit assets not natively supported by the `DssLitePsm` (like USDT), Spark provides liquidity to external AMMs (like Curve). A user's USDT deposit is swapped to a supported asset (like USDC) on Curve, and *then* the USDC is sent to the `DssLitePsm`.
+This is the contract the user correctly identified from the `sparkdotfi` GitHub. It is a distinct module designed specifically for **Layer 2 deployments**. It is not a direct replacement for the `DssLitePsm`, but a complementary component with a different set of features.
 
-**Conclusion on Inter-relation:** The `DssLitePsm` is the foundational peg mechanism. Spark's "PSM3" is not a new type of PSM, but rather the *integration* of Spark's application layer with the underlying `DssLitePsm`.
+- **Key Features:**
+    - **Multi-Asset Pool:** Instead of a single pair, the `spark-psm` manages a unified pool of three assets: `USDC`, `USDS` (a Sky Ecosystem stablecoin), and `sUSDS` (the yield-bearing version of USDS).
+    - **Combined Swap & Savings:** This is the core innovation. The contract is both a PSM and an ERC-4626-style savings vault. Users can either `swap` between the three assets or `deposit` any of them to receive generic "shares" in the total value of the pool.
+    - **Rate Provider:** It relies on an external `rateProvider` oracle to get the conversion rate between `sUSDS` and its underlying asset, which is necessary to calculate the total value of the pool and the price of shares.
+    - **Pocket Contract:** Like the `DssLitePsm`, it can use a `pocket` contract to hold its `USDC` reserves, allowing for yield-generation strategies on L2.
 
-## 4. Cross-Chain Bridging and Liquidity Flow
+## 3. The Layered Architecture & Cross-Chain Flow
 
-The cross-chain model for stablecoins like GHO (and likely the future model for USDS) builds on this layered architecture and the facilitator model.
+The two PSMs work together in a layered, hub-and-spoke architecture.
 
-**Mechanism: Lock-and-Mint via CCIP**
+- **Layer 1 (Mainnet - The Hub):**
+    - The `DssLitePsm` acts as the "central bank" for the ecosystem. It is the ultimate source of truth for the stablecoin's value and is where the primary reserves are held.
 
-1.  **User on L2 (e.g., Arbitrum):** A user on Arbitrum wants to acquire the protocol's stablecoin. They might buy a "bridged" version (e.g., `0xUSD.arb`) on a local DEX.
+- **Layer 2 (e.g., Arbitrum, Base - The Spokes):**
+    - The `spark-psm` acts as a "regional branch" or a liquidity hub on a specific L2. It provides a seamless user experience for swapping and saving *on that L2*.
 
-2.  **The Bridge's Role (The "Cross-Chain Facilitator"):** The liquidity for this bridged token is managed by a set of contracts that use a cross-chain messaging protocol like Chainlink's CCIP.
-    - On Ethereum mainnet, there is a `TokenPool` contract. This contract is registered as a **facilitator** on the main `0xUSD` token contract. It has a "bucket capacity" (minting limit) set by governance, which caps the total amount of 0xUSD that can exist on other chains.
-    - To provide liquidity to Arbitrum, the bridge operator (a trusted entity or a keeper) locks a certain amount of mainnet 0xUSD into this `TokenPool` contract.
-    - It then sends a secure message via CCIP to Arbitrum.
-    - A corresponding contract on Arbitrum receives this message and mints an equivalent amount of the "bridged" `0xUSD.arb`.
+**How Cross-Chain Liquidity Works:**
 
-3.  **The Flow of Funds:**
-    *   **Mainnet to L2:** `0xUSD` on mainnet is locked -> CCIP message -> `0xUSD.arb` is minted on L2.
-    *   **L2 to Mainnet:** `0xUSD.arb` is burned on L2 -> CCIP message -> `0xUSD` on mainnet is unlocked.
+1.  **Bridging:** To get assets onto the L2, a canonical bridge is used. For a stablecoin like USDS, this would involve locking USDS in a bridge contract on mainnet and minting a "bridged" version of USDS on the L2. This is the **cross-chain infrastructure** that connects the hub and the spoke.
 
-**How this relates to the PSM:**
+2.  **L2 Liquidity:** The bridged assets (USDC, USDS) are then deposited into the `spark-psm` on the L2. This contract now becomes the primary source of liquidity *on that specific L2*.
 
-The entire cross-chain mechanism operates "above" the PSM. The `DssLitePsm` resides only on mainnet and is the ultimate source and sink of the canonical stablecoin's supply. The bridging facilitators are simply another "user" of the mainnet stablecoin. This creates a hub-and-spoke model where the security and backing of the stablecoin are anchored to the mainnet PSM, while bridged versions can circulate on other networks with their supply managed by the cross-chain facilitator's minting cap.
+3.  **User Interaction on L2:**
+    - **Alice wants to swap USDC for USDS on Arbitrum.** She interacts directly with the `spark-psm` on Arbitrum. The swap is fast and cheap, as it's just a transfer within the L2 pool. The mainnet `DssLitePsm` is not involved in this transaction at all.
+    - **Bob wants to earn yield on his USDS on Arbitrum.** He deposits his USDS into the `spark-psm` and receives shares. The `spark-psm` can then, for example, lend out the USDC in its pool via its `pocket` contract to a local Aave deployment on Arbitrum, generating yield for the share-holders.
+
+**Conclusion on Inter-relation:** The `DssLitePsm` is the mainnet anchor of the entire system, responsible for the core stability and backing of the canonical asset. The `spark-psm` (PSM3) is a more flexible, multi-asset application designed to provide a rich user experience on L2s, and it relies on a bridge to source its assets from the mainnet hub. This layered approach allows the protocol to scale and expand its feature set across multiple chains without compromising the core security of the mainnet implementation.
