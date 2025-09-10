@@ -4,192 +4,156 @@ pragma solidity ^0.8.24;
 import {Ownable} from "openzeppelin-contracts/access/Ownable.sol";
 import {SafeERC20, IERC20} from "openzeppelin-contracts/token/ERC20/utils/SafeERC20.sol";
 import {I0xUSD} from "../interfaces/I0xUSD.sol";
+import {IPocket} from "../interfaces/IPocket.sol";
 import {Errors} from "../libs/Errors.sol";
 
 /**
- * @title Peg Stability Module (PSM)
+ * @title Peg Stability Module (PSM) - V2
  * @author Jules
- * @notice Allows users to swap supported stablecoins for 0xUSD at a near 1:1 ratio,
- * maintaining the peg. This contract must be registered as a facilitator on the 0xUSD contract.
+ * @notice Allows users to swap a single, trusted stablecoin (gem) for 0xUSD at a near 1:1 ratio.
+ * This V2 contract delegates all reserve management to a PSMPocket contract.
+ * This contract must be registered as a facilitator on the 0xUSD contract.
  */
 contract PSM is Ownable {
     using SafeERC20 for IERC20;
 
     /// @notice The 0xUSD token contract.
     I0xUSD public immutable token;
+    /// @notice The collateral token (e.g., USDC).
+    IERC20 public immutable gem;
+    /// @notice The pocket contract that manages the gem reserves.
+    IPocket public immutable pocket;
     /// @notice Address that receives collected fees.
     address public feeRecipient;
-    /// @notice Address that can perform emergency actions.
-    address public guardian;
+    /// @notice The fee for swaps, in basis points.
+    uint16 public spreadBps;
+    /// @notice The maximum amount of 0xUSD this PSM can have outstanding.
+    uint256 public debtCeiling;
+    /// @notice Whether the PSM is halted.
+    bool public halted;
 
-    /// @notice Configuration for each supported stablecoin route.
-    struct Route {
-        uint128 maxDepth; // Max amount of stablecoin this PSM can hold.
-        uint128 buffer; // Current amount of stablecoin held.
-        uint16 spreadBps; // Fee in basis points.
-        uint8 decimals; // Decimals of the stablecoin.
-        bool halted;
-    }
-
-    /// @notice Mapping from stablecoin address to its route configuration.
-    mapping(address => Route) public routes;
-
-    /// @notice Emitted when a user swaps stablecoins for 0xUSD or vice-versa.
+    /// @notice Emitted when a user swaps.
     event Swap(
         address indexed user,
-        address indexed stable,
         uint256 amountIn,
         uint256 amountOut,
         uint256 fee
     );
-    /// @notice Emitted when a route is added or updated.
-    event RouteUpdated(
-        address indexed stable,
-        uint128 maxDepth,
-        uint16 spreadBps
+    /// @notice Emitted when parameters are updated.
+    event ParamsUpdated(
+        uint256 debtCeiling,
+        uint16 spreadBps,
+        address feeRecipient
     );
-    /// @notice Emitted when a route is halted or un-halted.
-    event RouteHalted(address indexed stable, bool halted);
-    /// @notice Emitted when the fee recipient is updated.
-    event FeeRecipientUpdated(address indexed newRecipient);
-    /// @notice Emitted when the guardian is updated.
-    event GuardianUpdated(address indexed newGuardian);
+    /// @notice Emitted when the PSM is halted or un-halted.
+    event Halted(bool isHalted);
 
     /**
      * @param _token The address of the 0xUSD token.
+     * @param _gem The address of the collateral token (e.g., USDC).
+     * @param _pocket The address of the PSMPocket contract.
      * @param _initialOwner The initial owner (governance/timelock).
-     * @param _guardian The initial guardian address.
-     * @param _feeRecipient The initial fee recipient.
      */
     constructor(
         I0xUSD _token,
-        address _initialOwner,
-        address _guardian,
-        address _feeRecipient
+        IERC20 _gem,
+        IPocket _pocket,
+        address _initialOwner
     ) Ownable(_initialOwner) {
-        if (address(_token) == address(0) || _guardian == address(0) || _feeRecipient == address(0)) {
+        if (address(_token) == address(0) || address(_gem) == address(0) || address(_pocket) == address(0)) {
             revert Errors.ZeroAddress();
         }
         token = _token;
-        guardian = _guardian;
-        feeRecipient = _feeRecipient;
-    }
-
-    /// @notice Modifier to restrict a function to only be callable by the guardian.
-    modifier onlyGuardian() {
-        if (msg.sender != guardian) revert Errors.NotAuthorized();
-        _;
+        gem = _gem;
+        pocket = _pocket;
     }
 
     /**
-     * @notice Add or update a stablecoin route.
-     * @dev Only callable by the owner (governance).
-     * @param stable The address of the stablecoin.
-     * @param maxDepth The maximum exposure cap for this stablecoin.
-     * @param spreadBps The fee in basis points.
+     * @notice Mints 0xUSD by swapping the collateral token (gem).
+     * @param amount The amount of gem to swap.
      */
-    function setRoute(
-        address stable,
-        uint128 maxDepth,
-        uint16 spreadBps
-    ) external onlyOwner {
-        if (stable == address(0)) revert Errors.ZeroAddress();
-        Route storage route = routes[stable];
-        if (route.decimals == 0) {
-            route.decimals = IERC20(stable).decimals();
-        }
-        route.maxDepth = maxDepth;
-        route.spreadBps = spreadBps;
-        emit RouteUpdated(stable, maxDepth, spreadBps);
-    }
-
-    /**
-     * @notice Halt or un-halt a specific route.
-     * @dev Can be called by the owner or the guardian.
-     * @param stable The address of the stablecoin route to update.
-     * @param halted The new halted status.
-     */
-    function setHalt(address stable, bool halted) external {
-        if (msg.sender != owner() && msg.sender != guardian) revert Errors.NotAuthorized();
-        routes[stable].halted = halted;
-        emit RouteHalted(stable, halted);
-    }
-
-    /**
-     * @notice Mints 0xUSD by swapping a stablecoin.
-     * @param stable The stablecoin to swap.
-     * @param amount The amount of stablecoin to swap.
-     */
-    function mint(address stable, uint256 amount) external {
-        Route storage route = routes[stable];
-        if (route.halted) revert Errors.RouteHalted();
+    function mint(uint256 amount) external {
+        if (halted) revert Errors.RouteHalted();
         if (amount == 0) revert Errors.InvalidAmount();
 
-        uint256 newBuffer = route.buffer + amount;
-        if (newBuffer > route.maxDepth) revert Errors.DepthExceeded();
-        route.buffer = uint128(newBuffer);
-
-        uint256 fee = (amount * route.spreadBps) / 10_000;
+        uint256 fee = (amount * spreadBps) / 10_000;
         uint256 amountOut = amount - fee;
 
+        uint8 gemDecimals = gem.decimals();
         // Scale to 18 decimals for 0xUSD
-        uint256 scaledAmountOut = amountOut * (10 ** (18 - route.decimals));
+        uint256 scaledAmountOut = amountOut * (10 ** (18 - gemDecimals));
 
-        IERC20(stable).safeTransferFrom(msg.sender, address(this), amount);
+        if (token.totalSupply() + scaledAmountOut > debtCeiling) {
+            revert Errors.DepthExceeded();
+        }
+
+        gem.safeTransferFrom(msg.sender, address(this), amount);
+        gem.safeApprove(address(pocket), amount);
+        pocket.depositFromPSM(amount);
+
         token.mint(msg.sender, scaledAmountOut);
 
-        emit Swap(msg.sender, stable, amount, scaledAmountOut, fee * (10 ** (18 - route.decimals)));
+        emit Swap(msg.sender, amount, scaledAmountOut, fee);
     }
 
     /**
-     * @notice Redeems 0xUSD for a stablecoin.
-     * @param stable The stablecoin to receive.
+     * @notice Redeems 0xUSD for the collateral token (gem).
      * @param amount The amount of 0xUSD to redeem.
      */
-    function redeem(address stable, uint256 amount) external {
-        Route storage route = routes[stable];
-        if (route.halted) revert Errors.RouteHalted();
+    function redeem(uint256 amount) external {
+        if (halted) revert Errors.RouteHalted();
         if (amount == 0) revert Errors.InvalidAmount();
 
+        uint8 gemDecimals = gem.decimals();
         // Scale from 18 decimals of 0xUSD
-        uint256 scaledAmount = amount / (10 ** (18 - route.decimals));
+        uint256 scaledAmount = amount / (10 ** (18 - gemDecimals));
 
-        uint256 fee = (scaledAmount * route.spreadBps) / 10_000;
+        uint256 fee = (scaledAmount * spreadBps) / 10_000;
         uint256 amountOut = scaledAmount - fee;
 
-        if (amountOut > route.buffer) revert Errors.DepthExceeded();
-        route.buffer = uint128(route.buffer - amountOut);
+        if (pocket.totalValue() < amountOut) {
+            revert Errors.InsufficientBalance();
+        }
 
         token.burn(msg.sender, amount);
-        IERC20(stable).safeTransfer(msg.sender, amountOut);
-        IERC20(stable).safeTransfer(feeRecipient, fee);
+        pocket.withdrawToPSM(amountOut);
 
-        emit Swap(msg.sender, stable, amount, amountOut, fee);
+        // The pocket contract transfers the gems to this contract. Now send to user.
+        gem.safeTransfer(msg.sender, amountOut);
+
+        // Send fees to the recipient.
+        if (fee > 0) {
+            pocket.withdrawToPSM(fee);
+            gem.safeTransfer(feeRecipient, fee);
+        }
+
+        emit Swap(msg.sender, amount, amountOut, fee);
+    }
+
+    // --- Admin Functions ---
+
+    /**
+     * @notice Updates the core parameters of the PSM.
+     * @dev Only callable by the owner (governance).
+     */
+    function setParams(
+        uint256 _debtCeiling,
+        uint16 _spreadBps,
+        address _feeRecipient
+    ) external onlyOwner {
+        if (_feeRecipient == address(0)) revert Errors.ZeroAddress();
+        debtCeiling = _debtCeiling;
+        spreadBps = _spreadBps;
+        feeRecipient = _feeRecipient;
+        emit ParamsUpdated(_debtCeiling, _spreadBps, _feeRecipient);
     }
 
     /**
-     * @notice Sweeps accidentally sent ERC20 tokens from this contract.
-     * @dev Only callable by the owner. Cannot be used to sweep the 0xUSD token or active collateral.
-     * @param asset The address of the ERC20 token to sweep.
+     * @notice Halts or un-halts the PSM.
+     * @dev Only callable by the owner.
      */
-    function sweep(address asset) external onlyOwner {
-        if (asset == address(token)) revert Errors.NotAuthorized();
-        if (routes[asset].maxDepth > 0) revert Errors.NotAuthorized(); // Is an active route
-
-        IERC20(asset).safeTransfer(owner(), IERC20(asset).balanceOf(address(this)));
-    }
-
-    /// @notice Updates the fee recipient address.
-    function setFeeRecipient(address _feeRecipient) external onlyOwner {
-        if (_feeRecipient == address(0)) revert Errors.ZeroAddress();
-        feeRecipient = _feeRecipient;
-        emit FeeRecipientUpdated(_feeRecipient);
-    }
-
-    /// @notice Updates the guardian address.
-    function setGuardian(address _guardian) external onlyOwner {
-        if (_guardian == address(0)) revert Errors.ZeroAddress();
-        guardian = _guardian;
-        emit GuardianUpdated(_guardian);
+    function setHalt(bool _halted) external onlyOwner {
+        halted = _halted;
+        emit Halted(_halted);
     }
 }

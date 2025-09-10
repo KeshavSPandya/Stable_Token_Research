@@ -30,15 +30,27 @@ The 0xUSD ecosystem consists of the following core smart contracts:
     - Managing the allowlist for future savings venues.
 - **Stewardship:** We will adopt a "Steward" model similar to GHO's. A `GhoGsmSteward`-like contract, controlled by a trusted multi-sig, can be granted permission to adjust a limited set of parameters within predefined bounds (e.g., slightly raise a PSM fee). This allows for agile responses to market conditions without requiring a full, slow governance vote for every minor change.
 
-### 3. `PSM.sol` (Peg Stability Module)
+### 3. `PSM.sol` and `PSMPocket.sol` (Peg Stability Module V2)
 
-- **Role:** The primary mechanism for maintaining the peg. It allows users to swap a supported stablecoin (e.g., USDC) for 0xUSD at a 1:1 ratio, minus a small fee.
-- **Facilitator:** The `PSM` will be a registered `Facilitator` for `0xUSD`. When a user deposits USDC, the `PSM` contract calls `0xUSD.mint()` to create new 0xUSD. When a user redeems 0xUSD for USDC, the `PSM` calls `0xUSD.burn()`.
+The V2 peg stability mechanism is split into two contracts to enhance security and modularity, separating user-facing swap logic from complex reserve management.
+
+#### `PSM.sol`
+
+- **Role:** The public-facing contract for maintaining the peg. It allows users to swap a single, highly-trusted stablecoin (e.g., USDC) for 0xUSD at a 1:1 ratio, minus a small fee.
+- **Facilitator:** The `PSM` is a registered `Facilitator` for `0xUSD`. It handles the minting and burning of `0xUSD` during swaps.
 - **Key Features:**
-    - **Per-Route Config:** Each collateral type (e.g., USDC, USDT) will have its own settings:
-        - `maxDepth`: The maximum amount of collateral the PSM can hold (exposure cap).
-        - `spreadBps`: The fee for minting and/or redeeming.
-    - **Circuit Breaker:** The PSM will have a `halt()` function that can be triggered by governance (or a Steward) to disable swaps for a specific collateral type. This is critical if the underlying collateral shows signs of de-pegging.
+    - **Reserve Delegation:** The PSM does **not** hold any collateral reserves itself. It is a simple pass-through contract that delegates all reserve management to the `PSMPocket`.
+    - **Debt Ceiling:** The PSM enforces a `debtCeiling` to cap the total amount of 0xUSD that can be created through it.
+    - **Circuit Breaker:** The PSM has a `halt()` function to disable all swaps in an emergency.
+
+#### `PSMPocket.sol`
+
+- **Role:** The backend reserve and strategy manager for the `PSM`. It holds all the USDC collateral and is responsible for deploying idle assets to generate yield.
+- **Key Features:**
+    - **Reserve Management:** Holds the USDC deposited via the `PSM`.
+    - **Strategy Integration:** Can deploy a portion of its idle USDC to whitelisted, yield-generating `Strategy` contracts (e.g., a Beefy Finance vault).
+    - **Oracle-Based Accounting:** Uses Chainlink oracles to value the assets held in external strategies, providing a real-time view of the total value of its reserves.
+    - **Governance Controlled:** All strategy deployments and administrative actions are controlled by governance, keeping the core `PSM` free of complex logic.
 
 ### 4. `AllocatorVault.sol` (Permissioned Credit)
 

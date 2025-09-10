@@ -5,11 +5,13 @@ import {Script} from "forge-std/Script.sol";
 import {console} from "forge-std/console.sol";
 import {OxUSD} from "../src/token/0xUSD.sol";
 import {PSM} from "../src/psm/PSM.sol";
+import {PSMPocket} from "../src/pocket/PSMPocket.sol";
 import {AllocatorVault} from "../src/allocators/AllocatorVault.sol";
 import {SavingsVault} from "../src/savings/SavingsVault.sol";
 import {ParamRegistry} from "../src/governance/ParamRegistry.sol";
+import {IERC20} from "openzeppelin-contracts/token/ERC20/IERC20.sol";
 
-contract Deploy is Script {
+contract DeployV2 is Script {
     // --- Deployment Configuration ---
 
     function _getEnvAddress(string memory key) internal returns (address) {
@@ -24,19 +26,17 @@ contract Deploy is Script {
         return value;
     }
 
-    function run() external returns (OxUSD, PSM, AllocatorVault, SavingsVault, ParamRegistry) {
+    function run() external returns (OxUSD, PSMPocket, PSM, AllocatorVault, SavingsVault, ParamRegistry) {
         // --- 1. Load Configuration from Environment ---
-        console.log("Loading deployment configuration from environment variables...");
+        console.log("Loading V2 deployment configuration from environment variables...");
         address owner = _getEnvAddress("DEPLOY_OWNER");
-        address guardian = _getEnvAddress("DEPLOY_GUARDIAN");
         address feeRecipient = _getEnvAddress("DEPLOY_FEE_RECIPIENT");
         address usdcAddress = _getEnvAddress("USDC_ADDRESS");
-        uint256 psmUsdcMaxDepth = _getEnvUint("PSM_USDC_MAX_DEPTH");
-        uint256 psmUsdcSpreadBps = _getEnvUint("PSM_USDC_SPREAD_BPS");
+        uint256 psmDebtCeiling = _getEnvUint("PSM_DEBT_CEILING");
+        uint256 psmSpreadBps = _getEnvUint("PSM_SPREAD_BPS");
         uint256 savingsExitBufferBps = _getEnvUint("SAVINGS_EXIT_BUFFER_BPS");
 
         console.log("  -> Owner:", owner);
-        console.log("  -> Guardian:", guardian);
         console.log("  -> Fee Recipient:", feeRecipient);
         console.log("  -> USDC Address:", usdcAddress);
 
@@ -51,9 +51,13 @@ contract Deploy is Script {
         ParamRegistry params = new ParamRegistry(owner);
         console.log("-> ParamRegistry deployed at:", address(params));
 
-        console.log("Deploying PSM...");
-        PSM psm = new PSM(token, owner, guardian, feeRecipient);
-        console.log("-> PSM deployed at:", address(psm));
+        console.log("Deploying PSMPocket...");
+        PSMPocket pocket = new PSMPocket(usdcAddress, address(0)); // PSM address set later
+        console.log("-> PSMPocket deployed at:", address(pocket));
+
+        console.log("Deploying V2 PSM...");
+        PSM psm = new PSM(token, IERC20(usdcAddress), pocket, owner);
+        console.log("-> V2 PSM deployed at:", address(psm));
 
         console.log("Deploying AllocatorVault...");
         AllocatorVault allocatorVault = new AllocatorVault(token, owner);
@@ -65,6 +69,8 @@ contract Deploy is Script {
 
         // --- 3. Configure Roles & Permissions ---
         console.log("Configuring roles...");
+        pocket.setPSM(address(psm));
+        console.log("-> Linked PSM to Pocket");
         token.setFacilitator(address(psm), true);
         console.log("-> PSM set as facilitator");
         token.setFacilitator(address(allocatorVault), true);
@@ -72,8 +78,8 @@ contract Deploy is Script {
 
         // --- 4. Set Initial Parameters ---
         console.log("Setting initial parameters...");
-        psm.setRoute(usdcAddress, uint128(psmUsdcMaxDepth), uint16(psmUsdcSpreadBps));
-        console.log("-> Initial USDC route configured in PSM");
+        psm.setParams(psmDebtCeiling, uint16(psmSpreadBps), feeRecipient);
+        console.log("-> Initial V2 PSM parameters configured");
 
         // --- 5. Transfer Ownership ---
         console.log("--- Ownership Transfer ---");
@@ -81,6 +87,6 @@ contract Deploy is Script {
 
         vm.stopBroadcast();
 
-        return (token, psm, allocatorVault, savingsVault, params);
+        return (token, pocket, psm, allocatorVault, savingsVault, params);
     }
 }
